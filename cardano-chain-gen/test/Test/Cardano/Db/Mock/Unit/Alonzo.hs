@@ -21,7 +21,7 @@ import           Cardano.Ledger.Keys
 import           Cardano.Ledger.Mary.Value
 import           Cardano.Ledger.SafeHash
 import           Cardano.Ledger.Shelley.TxBody
-import           Cardano.Ledger.Slot (BlockNo (..), EpochNo)
+import           Cardano.Ledger.Slot (EpochNo)
 
 import           Cardano.Mock.ChainSync.Server
 import           Cardano.Mock.Forging.Interpreter
@@ -30,6 +30,8 @@ import           Cardano.Mock.Forging.Tx.Alonzo.Scenarios
 import           Cardano.Mock.Forging.Tx.Alonzo.ScriptsExamples
 import           Cardano.Mock.Forging.Tx.Generic
 import           Cardano.Mock.Forging.Types
+
+import           Cardano.Slotting.Block (BlockNo (..))
 
 import           Cardano.SMASH.Server.PoolDataLayer
 import           Cardano.SMASH.Server.Types
@@ -248,7 +250,7 @@ restartAndRollback =
       stopDBSync dbSync
       atomically $ rollback mockServer (blockPoint $ last blks)
       startDBSync dbSync
-      assertBlockNoBackoff dbSync 201
+      assertBlockNoBackoff dbSync 206
   where
     testLabel = "restartAndRollback-alonzo"
 
@@ -266,11 +268,12 @@ rollbackFurther =
     -- because a checkpoint was found.
     let blockHash1 = hfBlockHash (blks !! 33)
     Right bid1 <- queryDBSync dbSync $ DB.queryBlockId blockHash1
-    cm1 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.pack $ replicate 32 1) "{\"1\" : 1}" bid1
+    cm1 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 1) "{\"1\" : 1}" bid1
 
     let blockHash2 = hfBlockHash (blks !! 34)
     Right bid2 <- queryDBSync dbSync $ DB.queryBlockId blockHash2
-    cm2 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.pack $ replicate 32 2) "{\"2\" : 2}" bid2
+    cm2 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 2) "{\"2\" : 2}" bid2
+
 
     -- Note that there is no epoch change, which would add a new entry, since we have
     -- 80 blocks and not 100, which is the expected blocks/epoch. This also means there
@@ -321,7 +324,7 @@ registrationTx =
            . Alonzo.mkSimpleDCertTx [(StakeIndexNew 1, DCertDeleg . DeRegKey)])
 
     assertBlockNoBackoff dbSync 4
-    assertCertCounts dbSync (2,2,0,0)
+    assertCertCounts dbSync (7,2,5,0)
   where
     testLabel = "registrationTx-alonzo"
 
@@ -338,7 +341,7 @@ registrationsSameBlock =
         Right [tx0, tx1, Alonzo.addValidityInterval 1000 tx2, Alonzo.addValidityInterval 2000 tx3]
 
     assertBlockNoBackoff dbSync 1
-    assertCertCounts dbSync (2,2,0,0)
+    assertCertCounts dbSync (7,2,5,0)
   where
     testLabel = "registrationsSameBlock-alonzo"
 
@@ -354,7 +357,7 @@ registrationsSameTx =
                                , (StakeIndexNew 1, DCertDeleg . DeRegKey)]
 
     assertBlockNoBackoff dbSync 1
-    assertCertCounts dbSync (2,2,0,0)
+    assertCertCounts dbSync (7,2,5,0)
   where
     testLabel = "registrationsSameTx-alonzo"
 
@@ -372,7 +375,7 @@ stakeAddressPtr =
       Alonzo.mkPaymentTx (UTxOIndex 0) (UTxOAddressNewWithPtr 0 ptr) 20000 20000
 
     assertBlockNoBackoff dbSync 2
-    assertCertCounts dbSync (1,0,0,0)
+    assertCertCounts dbSync (6,0,5,0)
   where
     testLabel = "stakeAddressPtr-alonzo"
 
@@ -402,7 +405,7 @@ stakeAddressPtrDereg =
 
     st <- getAlonzoLedgerState interpreter
     assertBlockNoBackoff dbSync 3
-    assertCertCounts dbSync (2,1,0,0)
+    assertCertCounts dbSync (7,1,5,0)
     -- The 2 addresses have the same payment credentials and they reference the same
     -- stake credentials, however they have
     assertAddrValues dbSync (UTxOAddressNewWithPtr 0 ptr0) (DB.DbLovelace 40000) st
@@ -419,9 +422,13 @@ stakeAddressPtrUseBefore =
       void $ withAlonzoFindLeaderAndSubmitTx interpreter mockServer $
         Alonzo.mkPaymentTx (UTxOIndex 1) (UTxOAddressNewWithStake 0 (StakeIndexNew 1)) 10000 500
 
-        -- and then register it
+      assertCertCounts dbSync (5,0,5,0)
+
+      -- and then register it
       blk <- withAlonzoFindLeaderAndSubmitTx interpreter mockServer $
         Alonzo.mkSimpleDCertTx [ (StakeIndexNew 1, DCertDeleg . RegKey)]
+
+      assertCertCounts dbSync (6,0,5,0)
 
       let ptr = Ptr (blockSlot blk) (TxIx 0) (CertIx 0)
 
@@ -429,7 +436,7 @@ stakeAddressPtrUseBefore =
         Alonzo.mkPaymentTx (UTxOIndex 0) (UTxOAddressNewWithPtr 0 ptr) 20000 20000
 
       assertBlockNoBackoff dbSync 3
-      assertCertCounts dbSync (1,0,0,0)
+      assertCertCounts dbSync (6,0,5,0)
   where
     testLabel = "stakeAddressPtrUseBefore-alonzo"
 
@@ -633,7 +640,7 @@ mirReward =
       void $ fillUntilNextEpoch interpreter mockServer
 
       st <- getAlonzoLedgerState interpreter
-      -- 2 mir rewards from treasury are sumed
+      -- 2 mir rewards from treasury are summed
       assertRewardCounts dbSync st True Nothing [(StakeIndex 1, (0,0,1,1,0))]
   where
     testLabel = "mirReward-alonzo"
@@ -679,6 +686,31 @@ mirRewardRollback =
   where
     testLabel = "mirRewardRollback-alonzo"
 
+mirRewardShelley :: IOManager -> [(Text, Text)] -> Assertion
+mirRewardShelley =
+    withFullConfig "config-shelley" testLabel $ \interpreter mockServer dbSync -> do
+      startDBSync  dbSync
+      void $ registerAllStakeCreds interpreter mockServer
+
+      -- first move to treasury from reserves
+      void $ withShelleyFindLeaderAndSubmitTx interpreter mockServer $
+        const $ Shelley.mkDCertTx [DCertMir $ MIRCert ReservesMIR (SendToOppositePotMIR (Coin 100000))]
+                         (Wdrl mempty)
+
+      a <- fillEpochPercentage interpreter mockServer 50
+
+      -- mir from reserves
+      void $ withShelleyFindLeaderAndSubmitTx interpreter mockServer $ Shelley.mkSimpleDCertTx
+        [(StakeIndex 1, \cred -> DCertMir $ MIRCert ReservesMIR (StakeAddressesMIR (Map.singleton cred (DeltaCoin 100))))]
+
+      b <- fillUntilNextEpoch interpreter mockServer
+
+      st <- withShelleyLedgerState interpreter Right
+      assertBlockNoBackoff dbSync (fromIntegral $ 3 + length a + length b)
+      assertRewardCounts dbSync st False Nothing [(StakeIndex 1, (0,0,1,0,0))]
+  where
+    testLabel = "mirRewardShelley"
+
 mirRewardDereg :: IOManager -> [(Text, Text)] -> Assertion
 mirRewardDereg =
     withFullConfig alonzoConfigDir testLabel $ \interpreter mockServer dbSync -> do
@@ -706,6 +738,7 @@ mirRewardDereg =
           Alonzo.mkSimpleDCertTx [(StakeIndex 1, DCertDeleg . DeRegKey)]
 
       assertBlockNoBackoff dbSync (fromIntegral $ 4 + length (a <> b))
+
       -- deregistration means empty rewards
       st <- getAlonzoLedgerState interpreter
       assertRewardCounts dbSync st False Nothing []
@@ -731,7 +764,7 @@ rewardsEmptyChainLast =
 
       c <- fillEpochPercentage interpreter mockServer 68
 
-      -- Skip a percentage of the epoch epoch
+      -- Skip half an epoch
       void $ skipUntilNextEpoch interpreter mockServer []
       d <- fillUntilNextEpoch interpreter mockServer
       assertBlockNoBackoff dbSync (fromIntegral $ 1 + length a + 1 + length b + length c + 1 + length d)
@@ -1485,3 +1518,17 @@ hfBlockHash blk =
     BlockShelley sblk -> blockHash sblk
     BlockAlonzo ablk -> blockHash ablk
     _ -> error "hfBlockHash: unsupported block type"
+
+hfBlockNo :: CardanoBlock -> BlockNo
+hfBlockNo blk =
+  case blk of
+    BlockShelley sblk -> blockNo sblk
+    BlockAlonzo ablk -> blockNo ablk
+    _ -> error "hfBlockNo: unsupported block type"
+
+throwLeft :: Exception err => IO (Either err a) -> IO a
+throwLeft action = do
+  ma <- action
+  case ma of
+    Left err -> throwIO err
+    Right a -> pure a

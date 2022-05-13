@@ -96,7 +96,8 @@ resolveTxInputs
   => [ExtendedTxOut]
   -> Generic.TxIn
   -> ExceptT SyncNodeError (ReaderT SqlBackend m) (Generic.TxIn, DB.TxId, DbLovelace)
-resolveTxInputs groupedOutputs txIn = fmap convert $ liftLookupFail ("resolveTxInputs " <> textShow txIn <> " ") $ do
+resolveTxInputs groupedOutputs txIn =
+  fmap convert $ liftLookupFail ("resolveTxInputs " <> textShow txIn <> " ") $ do
     qres <- queryResolveInput txIn
     case qres of
       Right ret -> pure $ Right ret
@@ -113,14 +114,15 @@ resolveScriptHash
   => [ExtendedTxOut]
   -> Generic.TxIn
   -> ExceptT SyncNodeError (ReaderT SqlBackend m) (Maybe ByteString)
-resolveScriptHash groupedOutputs txIn = liftLookupFail "resolveScriptHash" $ do
-  qres <- fmap fst <$> queryResolveInputCredentials txIn
-  case qres of
-      Right ret -> pure $ Right ret
-      Left err ->
-        case resolveInMemory txIn groupedOutputs of
-          Nothing -> pure $ Left err
-          Just eutxo -> pure $ Right $ DB.txOutPaymentCred $ etoTxOut eutxo
+resolveScriptHash groupedOutputs txIn =
+  liftLookupFail "resolveScriptHash" $ do
+    qres <- fmap fst <$> queryResolveInputCredentials txIn
+    case qres of
+        Right ret -> pure $ Right ret
+        Left err ->
+          case resolveInMemory txIn groupedOutputs of
+            Nothing -> pure $ Left err
+            Just eutxo -> pure $ Right $ DB.txOutPaymentCred $ etoTxOut eutxo
 
 resolveInMemory :: Generic.TxIn -> [ExtendedTxOut] -> Maybe ExtendedTxOut
 resolveInMemory txIn = List.find matches

@@ -3,7 +3,7 @@ module Cardano.DbTool.PrepareSnapshot
   , runPrepareSnapshot
   ) where
 
-import           Cardano.Prelude (Word64, fromMaybe)
+import           Cardano.Prelude (Word64)
 
 import           Control.Monad
 
@@ -38,7 +38,7 @@ runPrepareSnapshotAux firstTry args = do
         printNewerSnapshots newerFiles
         case (mfile, olderFiles) of
             (Just file, _) -> do
-              let bblockNo = fromMaybe 0 $ blockBlockNo block
+              let bblockNo = blockBlockNo block
               printCreateSnapshot bblockNo (lsfFilePath file)
             (_, file : _) -> do
                 -- We couldn't find the tip of the db, so we return a list of

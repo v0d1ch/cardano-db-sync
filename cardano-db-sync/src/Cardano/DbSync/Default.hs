@@ -26,9 +26,11 @@ import           Cardano.DbSync.Era.Shelley.Insert (insertShelleyBlock)
 import           Cardano.DbSync.Era.Shelley.Insert.Epoch (insertPoolDepositRefunds, insertRewards)
 import           Cardano.DbSync.Era.Shelley.Validate (validateEpochRewards)
 import           Cardano.DbSync.Error
+
 import           Cardano.DbSync.LedgerState (ApplyResult (..), LedgerEvent (..),
                    applyBlockAndSnapshot, defaultApplyResult)
 import           Cardano.DbSync.LocalStateQuery
+
 import           Cardano.DbSync.Rollback (rollbackToPoint)
 import           Cardano.DbSync.Types
 import           Cardano.DbSync.Util
@@ -127,8 +129,9 @@ insertLedgerEvents env currentEpochNo@(EpochNo curEpoch) =
 
     subFromCurrentEpoch :: Word64 -> EpochNo
     subFromCurrentEpoch m =
-      if unEpochNo currentEpochNo >= m then EpochNo $ unEpochNo currentEpochNo - m
-      else EpochNo 0
+      if unEpochNo currentEpochNo >= m
+        then EpochNo $ unEpochNo currentEpochNo - m
+        else EpochNo 0
 
     toSyncState :: SyncState -> DB.SyncState
     toSyncState SyncLagging = DB.SyncLagging

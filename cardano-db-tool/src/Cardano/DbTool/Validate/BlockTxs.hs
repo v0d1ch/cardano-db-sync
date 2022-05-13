@@ -16,9 +16,8 @@ import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.Either (lefts)
 import           Data.Word (Word64)
 
-import           Database.Esqueleto.Experimental (SqlBackend, Value (Value), countRows, from,
-                   innerJoin, just, on, select, table, type (:&) ((:&)), unValue, val, where_,
-                   (==.), (^.))
+import           Database.Esqueleto.Experimental (SqlBackend, countRows, from, innerJoin, just, on,
+                   select, table, type (:&) ((:&)), unValue, val, where_, (==.), (^.))
 
 import qualified System.Random as Random
 
@@ -72,8 +71,8 @@ queryBlockTxCount blockNo = do
     (blk :& _tx) <-
       from $ table @Block
       `innerJoin` table @Tx
-      `on` (\(blk :& tx) -> blk ^. BlockId ==. tx ^. TxBlockId)
-    where_ (blk ^. BlockBlockNo ==. just (val blockNo))
+      `on` (\(blk :& tx) -> blk ^. BlockBlockNo ==. tx ^. TxBlockNo)
+    where_ (blk ^. BlockBlockNo ==. val blockNo)
     pure countRows
   pure $ maybe 0 unValue (listToMaybe res)
 
@@ -83,10 +82,4 @@ queryEpochBlockNumbers epoch = do
       blk <- from $ table @Block
       where_ (blk ^. BlockEpochNo ==. just (val epoch))
       pure (blk ^. BlockBlockNo, blk ^. BlockTxCount)
-    pure $ map convert res
-  where
-    convert :: (Value (Maybe Word64), Value Word64) -> (Word64, Word64)
-    convert (Value ma, Value b) =
-      case ma of
-        Nothing -> (0, b) -- The block does not have transactions.
-        Just a -> (a, b)
+    pure $ map unValue2 res
