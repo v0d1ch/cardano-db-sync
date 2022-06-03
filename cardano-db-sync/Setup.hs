@@ -1,4 +1,3 @@
-module Main where
 
 import           Cardano.Crypto.Hash
 import           Control.Monad (foldM, forM)
