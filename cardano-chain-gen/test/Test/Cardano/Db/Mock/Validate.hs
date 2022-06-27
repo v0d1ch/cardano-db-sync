@@ -302,7 +302,7 @@ assertBabbageCounts env expected =
       datums <- maybe 0 unValue . listToMaybe <$>
                     (select . from $ \(_a :: SqlExpr (Entity Datum)) -> pure countRows)
       colInputs <- maybe 0 unValue . listToMaybe <$>
-              (select . from $ \(_a :: SqlExpr (Entity CollateralTxIn)) -> pure countRows)
+                    (select . from $ \(_a :: SqlExpr (Entity CollateralTxIn)) -> pure countRows)
       scriptOutputs <- fromIntegral . length <$> queryScriptOutputs
       redeemerTxIn <- fromIntegral . length <$> queryTxInRedeemer
       invalidTx <- fromIntegral . length <$> queryInvalidTx

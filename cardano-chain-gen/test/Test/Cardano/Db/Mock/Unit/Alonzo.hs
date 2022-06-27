@@ -266,14 +266,13 @@ rollbackFurther =
     -- and then syncs further. We add references to blocks 34 and 35, to
     -- validate later that one is deleted through cascade, but the other was not
     -- because a checkpoint was found.
-    let blockHash1 = hfBlockHash (blks !! 33)
-    Right bid1 <- queryDBSync dbSync $ DB.queryBlockId blockHash1
-    cm1 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 1) "{\"1\" : 1}" bid1
+    let block1 = blks !! 33
+    void $ queryDBSync dbSync $ DB.queryBlockId (hfBlockHash block1)
+    cm1 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 1) "{\"1\" : 1}" (unBlockNo $ hfBlockNo block1)
 
-    let blockHash2 = hfBlockHash (blks !! 34)
-    Right bid2 <- queryDBSync dbSync $ DB.queryBlockId blockHash2
-    cm2 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 2) "{\"2\" : 2}" bid2
-
+    let block2 = blks !! 34
+    void $ queryDBSync dbSync $ DB.queryBlockId (hfBlockHash block2)
+    cm2 <- queryDBSync dbSync $ DB.insertCostModel $ DB.CostModel (BS.replicate 32 2) "{\"2\" : 2}" (unBlockNo $ hfBlockNo block2)
 
     -- Note that there is no epoch change, which would add a new entry, since we have
     -- 80 blocks and not 100, which is the expected blocks/epoch. This also means there
@@ -685,31 +684,6 @@ mirRewardRollback =
       assertRewardCounts dbSync st True Nothing [(StakeIndexNew 1, (0,0,0,1,0))]
   where
     testLabel = "mirRewardRollback-alonzo"
-
-mirRewardShelley :: IOManager -> [(Text, Text)] -> Assertion
-mirRewardShelley =
-    withFullConfig "config-shelley" testLabel $ \interpreter mockServer dbSync -> do
-      startDBSync  dbSync
-      void $ registerAllStakeCreds interpreter mockServer
-
-      -- first move to treasury from reserves
-      void $ withShelleyFindLeaderAndSubmitTx interpreter mockServer $
-        const $ Shelley.mkDCertTx [DCertMir $ MIRCert ReservesMIR (SendToOppositePotMIR (Coin 100000))]
-                         (Wdrl mempty)
-
-      a <- fillEpochPercentage interpreter mockServer 50
-
-      -- mir from reserves
-      void $ withShelleyFindLeaderAndSubmitTx interpreter mockServer $ Shelley.mkSimpleDCertTx
-        [(StakeIndex 1, \cred -> DCertMir $ MIRCert ReservesMIR (StakeAddressesMIR (Map.singleton cred (DeltaCoin 100))))]
-
-      b <- fillUntilNextEpoch interpreter mockServer
-
-      st <- withShelleyLedgerState interpreter Right
-      assertBlockNoBackoff dbSync (fromIntegral $ 3 + length a + length b)
-      assertRewardCounts dbSync st False Nothing [(StakeIndex 1, (0,0,1,0,0))]
-  where
-    testLabel = "mirRewardShelley"
 
 mirRewardDereg :: IOManager -> [(Text, Text)] -> Assertion
 mirRewardDereg =
@@ -1525,10 +1499,3 @@ hfBlockNo blk =
     BlockShelley sblk -> blockNo sblk
     BlockAlonzo ablk -> blockNo ablk
     _ -> error "hfBlockNo: unsupported block type"
-
-throwLeft :: Exception err => IO (Either err a) -> IO a
-throwLeft action = do
-  ma <- action
-  case ma of
-    Left err -> throwIO err
-    Right a -> pure a
