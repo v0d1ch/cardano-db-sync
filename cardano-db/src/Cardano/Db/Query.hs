@@ -780,7 +780,7 @@ queryTxOutValue (hash, index) = do
     (tx :& txOut) <- from $ table @Tx
       `innerJoin` table @TxOut
       `on` (\(tx :& txOut) -> tx ^. TxId ==. txOut ^. TxOutTxId)
-    where_ (txOut ^. TxOutIndex ==. val index &&. tx ^. TxHash ==. val hash)
+    where_ (txOut ^. TxOutIndex ==. val (fromIntegral index) &&. tx ^. TxHash ==. val hash)
     pure (txOut ^. TxOutTxId, txOut ^. TxOutValue)
   pure $ maybeToEither (DbLookupTxHash hash) unValue2 (listToMaybe res)
 
@@ -791,7 +791,7 @@ queryTxOutCredentials (hash, index) = do
     (tx :& txOut) <- from $ table @Tx
       `innerJoin` table @TxOut
       `on` (\(tx :& txOut) -> tx ^. TxId ==. txOut ^. TxOutTxId)
-    where_ (txOut ^. TxOutIndex ==. val index &&. tx ^. TxHash ==. val hash)
+    where_ (txOut ^. TxOutIndex ==. val (fromIntegral index) &&. tx ^. TxHash ==. val hash)
     pure (txOut ^. TxOutPaymentCred, txOut ^. TxOutAddressHasScript)
   pure $ maybeToEither (DbLookupTxHash hash) unValue2 (listToMaybe res)
 

@@ -68,7 +68,7 @@ queryStakeDelegation (Ptr (SlotNo slot) (TxIx txIx) (CertIx certIx)) = do
                 `on` (\(_dlg :& tx :& blk) -> blk ^. BlockBlockNo ==. tx ^. TxBlockNo)
           where_ (blk ^. BlockSlotNo ==. just (val slot))
           where_ (tx ^. TxBlockIndex ==. val (fromIntegral txIx))
-          where_ (dlg ^. DelegationCertIndex ==. val certIx)
+          where_ (dlg ^. DelegationCertIndex ==. val (fromIntegral certIx))
           -- Need to order by BlockSlotNo descending for correct behavior when there are two
           -- or more delegation certificates in a single epoch.
           orderBy [desc (blk ^. BlockSlotNo)]
@@ -77,46 +77,6 @@ queryStakeDelegation (Ptr (SlotNo slot) (TxIx txIx) (CertIx certIx)) = do
 
   pure $ unValue <$> listToMaybe res
 
-
--- queryStakeAddressRef
---     :: MonadIO m
---     => Ledger.Addr StandardCrypto
---     -> ReaderT SqlBackend m (Maybe StakeAddressId)
--- queryStakeAddressRef addr =
---     case addr of
---       Ledger.AddrBootstrap {} -> pure Nothing
---       Ledger.Addr nw _pcred sref ->
---         case sref of
---           StakeRefBase cred -> do
---             eres <- queryStakeAddress $ Ledger.serialiseRewardAcnt (Ledger.RewardAcnt nw cred)
---             pure $ either (const Nothing) Just eres
---           StakeRefPtr ptr -> queryStakeDelegation ptr
---           StakeRefNull -> pure Nothing
---   where
---     queryStakeDelegation
---         :: MonadIO m
---         => Ptr
---         -> ReaderT SqlBackend m (Maybe StakeAddressId)
---     queryStakeDelegation (Ptr (SlotNo slot) (TxIx txIx) (CertIx certIx)) = do
---       res <- select $ do
---         (dlg :& tx :& blk) <-
---           from $ table @Delegation
---           `innerJoin` table @Tx
---           `on` (\(dlg :& tx) -> tx ^. TxBlockNo ==. dlg ^. DelegationBlockNo)
---           `innerJoin` table @Block
---           `on` (\(_dlg :& tx :& blk) -> blk ^. BlockBlockNo ==. tx ^. TxBlockNo)
---
---         where_ (blk ^. BlockSlotNo ==. just (val slot))
---         where_ (tx ^. TxBlockIndex ==. val (fromIntegral txIx))
---         where_ (dlg ^. DelegationCertIndex ==. val certIx)
---         -- Need to order by BlockSlotNo descending for correct behavior when there are two
---         -- or more delegation certificates in a single epoch.
---         orderBy [desc (blk ^. BlockSlotNo)]
---         limit 1
---         pure (dlg ^. DelegationAddrId)
---
---       pure $ unValue <$> listToMaybe res
---
 queryResolveInput :: MonadIO m => Generic.TxIn -> ReaderT SqlBackend m (Either LookupFail (TxId, DbLovelace))
 queryResolveInput txIn =
   queryTxOutValue (Generic.txInHash txIn, fromIntegral (Generic.txInIndex txIn))

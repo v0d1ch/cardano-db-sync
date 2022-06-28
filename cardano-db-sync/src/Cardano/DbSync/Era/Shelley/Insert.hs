@@ -269,7 +269,7 @@ prepareTxOut tracer cache blkNo (txId, txHash) (Generic.TxOut index addr addrRaw
     mScriptId <- whenMaybe mScript $ insertScript tracer txId
     let !txOut = DB.TxOut
                   { DB.txOutTxId = txId
-                  , DB.txOutIndex = index
+                  , DB.txOutIndex = fromIntegral index
                   , DB.txOutAddress = Generic.renderAddress addr
                   , DB.txOutAddressRaw = addrRaw
                   , DB.txOutAddressHasScript = hasScript
