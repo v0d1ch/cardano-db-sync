@@ -47,6 +47,7 @@ forgeNextAndSubmit inter mockServer testBlock = do
 
 forgeNextFindLeaderAndSubmit :: Interpreter -> ServerHandle IO CardanoBlock -> [TxEra] -> IO CardanoBlock
 forgeNextFindLeaderAndSubmit interpreter mockServer txs'  = do
+  putStrLn "forgeNextFindLeaderAndSubmit"
   blk <- forgeNextFindLeader interpreter txs'
   atomically $ addBlock mockServer blk
   pure blk

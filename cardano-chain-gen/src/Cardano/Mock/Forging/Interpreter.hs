@@ -260,7 +260,8 @@ forgeNextAfter interpreter skipSlots txes = do
     forgeNextFindLeader interpreter txes
 
 forgeNextFindLeader :: Interpreter -> [TxEra] -> IO CardanoBlock
-forgeNextFindLeader interpreter txes =
+forgeNextFindLeader interpreter txes = do
+    putStrLn "forgeNextFindLeader"
     forgeNextLeaders interpreter txes $ Map.elems (interpForging interpreter)
 
 forgeNext :: Interpreter -> MockBlock -> IO CardanoBlock
@@ -271,13 +272,14 @@ forgeNext interpreter testBlock =
 
 forgeNextLeaders :: Interpreter -> [TxEra] -> [BlockForging IO CardanoBlock] -> IO CardanoBlock
 forgeNextLeaders interpreter txes possibleLeaders = do
+    putStrLn "forgeNextLeaders"
     interState <- getCurrentInterpreterState interpreter
     (blk, fingerprint) <- tryOrValidateSlot interState possibleLeaders
-    let !chain' = extendChainDB (istChain interState) blk
-    let !newSt = currentState chain'
+    let !chain = extendChainDB (istChain interState) blk
+    let !newSt = currentState chain
     let newInterState =
           InterpreterState
-            { istChain = chain'
+            { istChain = chain
             , istForecast = mkForecast cfg newSt
             , istSlot = blockSlot blk + 1
             , istNextBlockNo = blockNo blk + 1

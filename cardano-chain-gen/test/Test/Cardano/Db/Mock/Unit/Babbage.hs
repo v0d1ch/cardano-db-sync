@@ -151,7 +151,7 @@ unitTests iom knownMigrations =
           , test "spend inline datum same block" unlockDatumOutputSameBlock
           , test "spend reference script" spendRefScript
           , test "spend reference script same block" spendRefScriptSameBlock
-          , test "spend collateral output of invalid tx" spendCollateralOutput
+          , test "Erik spend collateral output of invalid tx" spendCollateralOutput
           , test "spend collateral output of invalid tx same block" spendCollateralOutputSameBlock
           , test "reference input to output which is not spent" referenceInputUnspend
           , test "supply and run script which is both reference and in witnesses" supplyScriptsTwoWays
@@ -1717,9 +1717,15 @@ spendCollateralOutput =
       startDBSync  dbSync
       void $ registerAllStakeCreds interpreter mockServer
 
+      assertBlockNoBackoff dbSync 1 -- Erik
+      assertTxCount dbSync 12 -- Erik
+
       tx0 <- withBabbageLedgerState interpreter $
                 Babbage.mkLockByScriptTx (UTxOIndex 0) [Babbage.TxOutNoInline False] 20000 20000
       void $ forgeNextFindLeaderAndSubmit interpreter mockServer [TxBabbage tx0]
+
+      assertBlockNoBackoff dbSync 2 -- Erik
+      assertTxCount dbSync 13 -- Erik
 
       -- tx fails so its collateral output become actual output.
       let utxo0 = head (Babbage.mkUTxOBabbage tx0)
@@ -1728,15 +1734,18 @@ spendCollateralOutput =
                   [UTxOInput (fst utxo0)] (UTxOIndex 1) (UTxOIndex 2) [UTxOPair utxo0] True False 10000 500
       void $ forgeNextFindLeaderAndSubmit interpreter mockServer [TxBabbage tx1]
       assertBlockNoBackoff dbSync 3
+      assertTxCount dbSync 14 -- Erik
 
       let utxo1 = head (Babbage.mkUTxOCollBabbage tx1)
       tx2 <- withBabbageLedgerState interpreter $
                 Babbage.mkUnlockScriptTxBabbage
                   [UTxOPair utxo1] (UTxOIndex 3) (UTxOIndex 4) [UTxOPair utxo1] False True 10000 500
+      putStrLn $ mconcat ["\n\n", show tx2, "\n"]
+      assertBlockNoBackoff dbSync 3
       void $ forgeNextFindLeaderAndSubmit interpreter mockServer [TxBabbage tx2]
 
       assertBlockNoBackoff dbSync 4
-      assertBabbageCounts dbSync (0,0,0,0,1,0,1,1,0,0,0,0,0)
+      assertTxCount dbSync 15 -- Erik
       assertBabbageCounts dbSync (1,1,1,1,2,1,1,1,1,1,1,1,1) -- (0,0,0,0,1,0,1,1,0,0,0,0,0)
   where
     testLabel = "spendCollateralOutput"
